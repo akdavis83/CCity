@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D City Builder - Scroll to Build</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@300;400;500;600;700;800;900&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'Orbitron', monospace;
+            overflow-x: hidden;
+            color: #ffffff;
+        }
+
+        /* Three.js Canvas Container */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 0 2rem;
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 8vw, 8rem);
+            font-weight: 900;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #00ffff 0%, #0080ff 50%, #ffffff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: titleGlow 4s ease-in-out infinite alternate;
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1.2rem, 3vw, 2rem);
+            font-weight: 300;
+            opacity: 0.9;
+            max-width: 800px;
+            margin-bottom: 3rem;
+            color: #00ffff;
+        }
+
+        @keyframes titleGlow {
+            from { filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.3)); }
+            to { filter: drop-shadow(0 0 40px rgba(0, 255, 255, 0.6)); }
+        }
+
+        /* City Info Panel */
+        .city-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            min-width: 250px;
+        }
+
+        .building-counter {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+
+        .city-stats {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        /* Construction Progress */
+        .progress-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 30px;
+            border-radius: 25px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            text-align: center;
+        }
+
+        .progress-fill {
+            width: 300px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-inner {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #0080ff);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Scroll indicator */
+        .scroll-indicator {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 20;
+            color: #00ffff;
+            font-size: 1rem;
+            animation: bounce 2s infinite;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+
+        /* Spacer sections for scroll effect */
+        .spacer-section {
+            height: 100vh;
+            width: 100%;
+            position: relative;
+            z-index: 5;
+        }
+
+        /* City Districts Info */
+        .district-info {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            max-width: 200px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .district-info.visible {
+            opacity: 1;
+        }
+
+        .district-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+
+        .district-desc {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .city-info {
+                top: 10px;
+                left: 10px;
+                padding: 15px;
+                min-width: 200px;
+            }
+            
+            .building-counter {
+                font-size: 1.4rem;
+            }
+            
+            .progress-bar {
+                bottom: 10px;
+                padding: 10px 20px;
+            }
+            
+            .progress-fill {
+                width: 200px;
+            }
+            
+            .scroll-indicator {
+                bottom: 1rem;
+                right: 1rem;
+                padding: 10px;
+                font-size: 0.9rem;
+            }
+            
+            .district-info {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero">
+        <h1 class="hero-title">CYBER CITY</h1>
+        <p class="hero-subtitle">Watch a futuristic metropolis rise from the ground as you scroll through the digital landscape</p>
+    </div>
+
+    <!-- Three.js Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- City Info Panel -->
+    <div class="city-info">
+        <div class="building-counter" id="building-counter">Buildings: 0</div>
+        <div class="city-stats">
+            <div class="stat-item">
+                <span>Population:</span>
+                <span id="population">0</span>
+            </div>
+            <div class="stat-item">
+                <span>District:</span>
+                <span id="current-district">Foundation</span>
+            </div>
+            <div class="stat-item">
+                <span>Height:</span>
+                <span id="max-height">0m</span>
+            </div>
+            <div class="stat-item">
+                <span>Energy:</span>
+                <span id="energy-level">100%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Construction Progress -->
+    <div class="progress-bar">
+        <div>City Construction Progress</div>
+        <div class="progress-fill">
+            <div class="progress-inner" id="progress-inner"></div>
+        </div>
+        <div id="progress-text">0% Complete</div>
+    </div>
+
+    <!-- District Info -->
+    <div class="district-info" id="district-info">
+        <div class="district-title" id="district-title">Residential</div>
+        <div class="district-desc" id="district-desc">Modern living spaces with advanced amenities</div>
+    </div>
+
+    <!-- Scroll Indicator -->
+    <div class="scroll-indicator">
+        ↓ Scroll to Build ↓<br>
+        <small>Watch the city grow</small>
+    </div>
+
+    <!-- Spacer sections for scroll effects -->
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+    <div class="spacer-section"></div>
+
+    <!-- Three.js and Anime.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+    <script>
+        // Three.js Scene Setup
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x0a0a0a, 50, 200);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x0a0a0a, 1);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Lighting Setup
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0x00ffff, 1);
+        directionalLight.position.set(50, 100, 50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
+        scene.add(directionalLight);
+
+        // Neon lighting
+        const neonLight1 = new THREE.PointLight(0x00ffff, 2, 100);
+        neonLight1.position.set(30, 50, 30);
+        scene.add(neonLight1);
+
+        const neonLight2 = new THREE.PointLight(0xff0080, 1.5, 100);
+        neonLight2.position.set(-30, 50, -30);
+        scene.add(neonLight2);
+
+        const neonLight3 = new THREE.PointLight(0x8000ff, 1.8, 100);
+        neonLight3.position.set(0, 80, 50);
+        scene.add(neonLight3);
+
+        // Ground Plane
+        const groundGeometry = new THREE.PlaneGeometry(300, 300, 50, 50);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x1a1a2e,
+            transparent: true,
+            opacity: 0.8
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -1;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Grid lines on ground
+        const gridHelper = new THREE.GridHelper(300, 30, 0x00ffff, 0x004444);
+        gridHelper.position.y = -0.5;
+        scene.add(gridHelper);
+
+        // City Configuration
+        const TOTAL_BUILDINGS = 100;
+        const CITY_SIZE = 80;
+        const MAX_BUILDING_HEIGHT = 50;
+        
+        // Building arrays
+        const buildings = [];
+        const cityGroup = new THREE.Group();
+        scene.add(cityGroup);
+
+        // District definitions
+        const districts = [
+            { name: "Foundation", desc: "Basic infrastructure and utilities", color: 0x444444 },
+            { name: "Residential", desc: "Modern living spaces with advanced amenities", color: 0x00ffff },
+            { name: "Commercial", desc: "Shopping centers and business districts", color: 0xff8000 },
+            { name: "Industrial", desc: "Manufacturing and production facilities", color: 0xff0080 },
+            { name: "Tech Hub", desc: "Innovation centers and research labs", color: 0x8000ff },
+            { name: "Skyscrapers", desc: "Towering corporate headquarters", color: 0x00ff80 }
+        ];
+
+        // Materials for different building types
+        const buildingMaterials = {
+            residential: new THREE.MeshPhongMaterial({ 
+                color: 0x00ffff, 
+                emissive: 0x003333,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 50
+            }),
+            commercial: new THREE.MeshPhongMaterial({ 
+                color: 0xff8000, 
+                emissive: 0x331100,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 80
+            }),
+            industrial: new THREE.MeshPhongMaterial({ 
+                color: 0xff0080, 
+                emissive: 0x330022,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 30
+            }),
+            tech: new THREE.MeshPhongMaterial({ 
+                color: 0x8000ff, 
+                emissive: 0x220033,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 100
+            }),
+            skyscraper: new THREE.MeshPhongMaterial({ 
+                color: 0x00ff80, 
+                emissive: 0x003322,
+                transparent: true,
+                opacity: 0.9,
+                shininess: 120
+            })
+        };
+
+        // Create all buildings (initially hidden)
+        function createCity() {
+            for (let i = 0; i < TOTAL_BUILDINGS; i++) {
+                const building = new THREE.Group();
+                
+                // Building dimensions
+                const width = 2 + Math.random() * 4;
+                const depth = 2 + Math.random() * 4;
+                const height = 5 + Math.random() * MAX_BUILDING_HEIGHT;
+                
+                // Position in city grid
+                const x = (Math.random() - 0.5) * CITY_SIZE;
+                const z = (Math.random() - 0.5) * CITY_SIZE;
+                
+                // Determine building type based on position and index
+                let buildingType = 'residential';
+                let material = buildingMaterials.residential;
+                
+                if (i < 20) {
+                    buildingType = 'residential';
+                    material = buildingMaterials.residential;
+                } else if (i < 40) {
+                    buildingType = 'commercial';
+                    material = buildingMaterials.commercial;
+                } else if (i < 60) {
+                    buildingType = 'industrial';
+                    material = buildingMaterials.industrial;
+                } else if (i < 80) {
+                    buildingType = 'tech';
+                    material = buildingMaterials.tech;
+                } else {
+                    buildingType = 'skyscraper';
+                    material = buildingMaterials.skyscraper;
+                }
+                
+                // Main building structure
+                const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
+                const buildingMesh = new THREE.Mesh(buildingGeometry, material.clone());
+                buildingMesh.position.y = height / 2;
+                buildingMesh.castShadow = true;
+                buildingMesh.receiveShadow = true;
+                building.add(buildingMesh);
+                
+                // Add windows
+                const windowGeometry = new THREE.PlaneGeometry(0.8, 1.2);
+                const windowMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xffff00,
+                    emissive: 0x444400,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                // Front and back windows
+                for (let floor = 1; floor < height / 3; floor++) {
+                    for (let w = 0; w < Math.floor(width); w++) {
+                        if (Math.random() > 0.3) { // Random window placement
+                            const window1 = new THREE.Mesh(windowGeometry, windowMaterial.clone());
+                            window1.position.set(-width/2 + w + 0.5, floor * 3, depth/2 + 0.01);
+                            building.add(window1);
+                            
+                            const window2 = new THREE.Mesh(windowGeometry, windowMaterial.clone());
+                            window2.position.set(-width/2 + w + 0.5, floor * 3, -depth/2 - 0.01);
+                            window2.rotation.y = Math.PI;
+                            building.add(window2);
+                        }
+                    }
+                }
+                
+                // Side windows
+                for (let floor = 1; floor < height / 3; floor++) {
+                    for (let d = 0; d < Math.floor(depth); d++) {
+                        if (Math.random() > 0.3) {
+                            const window3 = new THREE.Mesh(windowGeometry, windowMaterial.clone());
+                            window3.position.set(width/2 + 0.01, floor * 3, -depth/2 + d + 0.5);
+                            window3.rotation.y = Math.PI / 2;
+                            building.add(window3);
+                            
+                            const window4 = new THREE.Mesh(windowGeometry, windowMaterial.clone());
+                            window4.position.set(-width/2 - 0.01, floor * 3, -depth/2 + d + 0.5);
+                            window4.rotation.y = -Math.PI / 2;
+                            building.add(window4);
+                        }
+                    }
+                }
+                
+                // Add antenna/details for some buildings
+                if (Math.random() > 0.7) {
+                    const antennaGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3);
+                    const antennaMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, emissive: 0x330000 });
+                    const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                    antenna.position.y = height + 1.5;
+                    building.add(antenna);
+                }
+                
+                // Position building
+                building.position.set(x, 0, z);
+                building.userData = { 
+                    type: buildingType, 
+                    height: height,
+                    originalY: 0,
+                    built: false
+                };
+                
+                // Initially hide building
+                building.scale.y = 0;
+                building.visible = false;
+                
+                cityGroup.add(building);
+                buildings.push(building);
+            }
+        }
+
+        // Create the city
+        createCity();
+
+        // Camera positioning
+        camera.position.set(0, 30, 60);
+        camera.lookAt(0, 0, 0);
+
+        // Animation variables
+        let scrollY = 0;
+        let builtBuildings = 0;
+        let currentDistrict = 0;
+
+        // Update UI elements
+        function updateUI(buildingCount, progress) {
+            document.getElementById('building-counter').textContent = `Buildings: ${buildingCount}`;
+            document.getElementById('population').textContent = (buildingCount * 150).toLocaleString();
+            document.getElementById('max-height').textContent = `${Math.max(...buildings.slice(0, buildingCount).map(b => b.userData.height || 0)).toFixed(0)}m`;
+            document.getElementById('energy-level').textContent = `${Math.max(20, 100 - buildingCount).toFixed(0)}%`;
+            document.getElementById('progress-inner').style.width = `${progress * 100}%`;
+            document.getElementById('progress-text').textContent = `${(progress * 100).toFixed(1)}% Complete`;
+            
+            // Update district info
+            const districtIndex = Math.floor(progress * districts.length);
+            if (districtIndex !== currentDistrict && districtIndex < districts.length) {
+                currentDistrict = districtIndex;
+                const district = districts[districtIndex];
+                document.getElementById('current-district').textContent = district.name;
+                document.getElementById('district-title').textContent = district.name;
+                document.getElementById('district-desc').textContent = district.desc;
+                
+                // Show district info briefly
+                const districtInfo = document.getElementById('district-info');
+                districtInfo.classList.add('visible');
+                setTimeout(() => {
+                    districtInfo.classList.remove('visible');
+                }, 3000);
+            }
+        }
+
+        // Scroll event listener
+        window.addEventListener('scroll', () => {
+            scrollY = window.pageYOffset;
+            
+            // Calculate scroll progress (0 to 1)
+            const maxScroll = document.body.scrollHeight - window.innerHeight;
+            const scrollProgress = Math.min(scrollY / maxScroll, 1);
+            
+            // Calculate which buildings should be built
+            const targetBuildings = Math.floor(scrollProgress * TOTAL_BUILDINGS);
+            
+            // Build buildings progressively
+            for (let i = builtBuildings; i < targetBuildings && i < TOTAL_BUILDINGS; i++) {
+                const building = buildings[i];
+                if (!building.userData.built) {
+                    building.visible = true;
+                    building.userData.built = true;
+                    
+                    // Animate building construction from underground
+                    building.position.y = -building.userData.height;
+                    
+                    anime({
+                        targets: building.position,
+                        y: [building.userData.originalY],
+                        duration: 1000 + Math.random() * 500,
+                        easing: 'easeOutElastic(1, .8)',
+                        delay: i * 20
+                    });
+                    
+                    anime({
+                        targets: building.scale,
+                        y: [0, 1],
+                        duration: 800 + Math.random() * 400,
+                        easing: 'easeOutQuart',
+                        delay: i * 15
+                    });
+                    
+                    // Random rotation for variety
+                    anime({
+                        targets: building.rotation,
+                        y: (Math.random() - 0.5) * 0.2,
+                        duration: 600,
+                        easing: 'easeOutQuad',
+                        delay: i * 10
+                    });
+                }
+            }
+            
+            builtBuildings = Math.max(builtBuildings, targetBuildings);
+            updateUI(builtBuildings, scrollProgress);
+            
+            // Animate camera for cinematic effect
+            const cameraHeight = 30 + scrollProgress * 50;
+            const cameraDistance = 60 - scrollProgress * 20;
+            const cameraAngle = scrollProgress * Math.PI * 2;
+            
+            anime({
+                targets: camera.position,
+                x: Math.sin(cameraAngle) * cameraDistance,
+                y: cameraHeight,
+                z: Math.cos(cameraAngle) * cameraDistance,
+                duration: 300,
+                easing: 'easeOutQuad'
+            });
+            
+            // Always look at city center
+            camera.lookAt(0, scrollProgress * 20, 0);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+            
+            // Animate neon lights
+            neonLight1.position.x = Math.sin(time) * 40;
+            neonLight1.position.z = Math.cos(time) * 40;
+            neonLight1.intensity = 1.5 + Math.sin(time * 2) * 0.5;
+            
+            neonLight2.position.x = Math.cos(time * 0.7) * 35;
+            neonLight2.position.z = Math.sin(time * 0.7) * 35;
+            neonLight2.intensity = 1.2 + Math.cos(time * 1.5) * 0.3;
+            
+            neonLight3.position.x = Math.sin(time * 0.5) * 30;
+            neonLight3.position.z = Math.cos(time * 0.5) * 30;
+            neonLight3.intensity = 1.8 + Math.sin(time * 3) * 0.4;
+            
+            // Animate building windows (flickering effect)
+            buildings.forEach((building, index) => {
+                if (building.userData.built) {
+                    building.children.forEach(child => {
+                        if (child.material && child.material.emissive) {
+                            const flicker = Math.sin(time * 5 + index) * 0.1 + 0.9;
+                            child.material.emissive.multiplyScalar(flicker);
+                        }
+                    });
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        // Start animation
+        animate();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize UI
+        updateUI(0, 0);
+    </script>
+</body>
+</html>
